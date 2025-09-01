@@ -162,6 +162,7 @@ struct ConfigParameterByReference : public ConfigParameter {
                              std::vector<Validator<T>> validators)
       : ConfigParameter(longname, shortname, help),
         value_(value),
+        default_value_(value),
         _validators(validators){};
 
   std::optional<std::string> validate() override {
