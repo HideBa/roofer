@@ -279,27 +279,16 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
   auto& logger = roofer::logger::Logger::get_logger();
 
 #ifdef RF_USE_RERUN
-  // const auto& rec = rerun::RecordingStream::current();
-  const auto rec = rerun::RecordingStream(building.jsonl_path.string());
-  // rec.save(building.jsonl_path.string() + ".rrd");
-  if (cfg->use_rerun) {
-    rec.spawn().exit_on_failure();
-    rec.set_thread_local();
-  }
-  // roofer::vec3f testpts;
-  // testpts.push_back({1.0f, 2.0f, 3.0f});
-  // rec.log("test", rerun::Points3D(testpts));
+  // Use the global RecordingStream set in main()
+  const auto& rec = rerun::RecordingStream::current();
 
-#endif
-
-#ifdef RF_USE_RERUN
-  // rec.log("world/raw_points",
-  //         rerun::AnnotationContext({
-  //             rerun::AnnotationInfo(6, "BUILDING", rerun::Rgba32(255, 0, 0)),
-  //             rerun::AnnotationInfo(2, "GROUND"),
-  //             rerun::AnnotationInfo(1, "UNCLASSIFIED"),
-  //         }));
   if (cfg->use_rerun) {
+    rec.log("world/raw_points",
+            rerun::AnnotationContext({
+                rerun::AnnotationInfo(6, "BUILDING", rerun::Rgba32(255, 0, 0)),
+                rerun::AnnotationInfo(2, "GROUND"),
+                rerun::AnnotationInfo(1, "UNCLASSIFIED"),
+            }));
     rec.log("world/building_points",
             rerun::Points3D(building.pointcloud_building));
     rec.log("world/ground_points", rerun::Points3D(building.pointcloud_ground));

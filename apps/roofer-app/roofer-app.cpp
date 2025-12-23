@@ -373,17 +373,20 @@ int main(int argc, const char* argv[]) {
 
 // rerun
 #ifdef RF_USE_RERUN
-// if (handler.cfg_.use_rerun) {
-//   // Create a new `RecordingStream` which sends data over TCP to the viewer
-//   // process.
-//   const auto rec = rerun::RecordingStream("Roofer");
-//   // Try to spawn a new viewer instance.
-//   rec.spawn().exit_on_failure();
-//   rec.set_global();
-//   roofer::vec3f testpts;
-//   testpts.push_back({1.0f, 2.0f, 3.0f});
-//   rec.log("test", rerun::Points3D(testpts));
-// }
+  // Keep RecordingStream alive for the entire program lifetime
+  std::optional<rerun::RecordingStream> rerun_stream;
+  if (handler.cfg_.use_rerun) {
+    // Create a new `RecordingStream` which sends data over TCP to the viewer
+    // process.
+    std::cout << "===Rerun is enabled===" << std::endl;
+    rerun_stream.emplace("Roofer");
+    // Try to spawn a new viewer instance.
+    rerun_stream->spawn().exit_on_failure();
+    rerun_stream->set_global();
+    roofer::vec3f testpts;
+    testpts.push_back({1.0f, 2.0f, 3.0f});
+    rerun_stream->log("test", rerun::Points3D(testpts));
+  }
 #endif
 
   // precomputation for tiling
