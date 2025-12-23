@@ -376,13 +376,12 @@ int main(int argc, const char* argv[]) {
   // Keep RecordingStream alive for the entire program lifetime
   std::optional<rerun::RecordingStream> rerun_stream;
   if (handler.cfg_.use_rerun) {
-    // Create a new `RecordingStream` and save to file
+    // Create a new `RecordingStream` which sends data over TCP to the viewer
+    // process.
     std::cout << "===Rerun is enabled===" << std::endl;
     rerun_stream.emplace("Roofer");
-    // Save to .rrd file in output directory (more reliable than spawn)
-    auto rrd_path = fs::path(handler.cfg_.output_path) / "roofer.rrd";
-    std::cout << "Saving Rerun data to: " << rrd_path << std::endl;
-    rerun_stream->save(rrd_path.string()).exit_on_failure();
+    // Try to spawn a new viewer instance.
+    rerun_stream->spawn().exit_on_failure();
     rerun_stream->set_global();
     roofer::vec3f testpts;
     testpts.push_back({1.0f, 2.0f, 3.0f});

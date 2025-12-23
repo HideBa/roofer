@@ -167,8 +167,10 @@ void multisolid_post_process(BuildingObject& building, RooferConfig* cfg,
   // logger.debug("Completed PC2MeshDistCalculator. RMSE={}",
   //  PC2MeshDistCalculator->rms_error);
 #ifdef RF_USE_RERUN
-rec.log(worldname+"PC2MeshDistCalculator",
-rerun::Mesh3D(PC2MeshDistCalculator->triangles).with_vertex_normals(MeshTriangulator->normals).with_class_ids(MeshTriangulator->ring_ids));
+  rec.log(worldname + "PC2MeshDistCalculator",
+          rerun::Mesh3D(PC2MeshDistCalculator->triangles)
+              .with_vertex_normals(MeshTriangulator->normals)
+              .with_class_ids(MeshTriangulator->ring_ids));
 #endif
 
 #ifdef RF_USE_VAL3DITY
@@ -223,8 +225,9 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   ArrangementSnapper->compute(arrangement);
   // logger.debug("Completed ArrangementSnapper");
 #ifdef RF_USE_RERUN
-rec.log(worldname+"ArrangementSnapper", rerun::LineStrips3D(
-roofer::reconstruction::arr2polygons(arrangement) ));
+  rec.log(
+      worldname + "ArrangementSnapper",
+      rerun::LineStrips3D(roofer::reconstruction::arr2polygons(arrangement)));
 #endif
 
   auto ArrangementExtruder =
@@ -286,7 +289,6 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
   const auto& rec = rerun::RecordingStream::current();
 
   if (cfg->use_rerun) {
-    std::cout << "Logging raw_points" << std::endl;
     rec.log("world/raw_points",
             rerun::AnnotationContext({
                 rerun::AnnotationInfo(6, "BUILDING", rerun::Rgba32(255, 0, 0)),
