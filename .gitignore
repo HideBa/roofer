@@ -38,3 +38,5 @@ build-deps-balazs.sh
 
 # Other
 *.DS_Store
+
+data/

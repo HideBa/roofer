@@ -372,6 +372,14 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     //         "world/segmented_points",
     //         rerun::Points3D(points_roof).with_class_ids(PlaneDetector->plane_id));
     // #endif
+#ifdef RF_USE_RERUN
+    if (cfg->use_rerun) {
+      // Step 1: Visualize detected planes (region growing result)
+      rec.log("world/segmented_points",
+              rerun::Points3D(building.pointcloud_building)
+                  .with_class_ids(PlaneDetector->plane_id));
+    }
+#endif
     t0 = std::chrono::high_resolution_clock::now();
     auto AlphaShaper = roofer::reconstruction::createAlphaShaper();
     AlphaShaper->compute(PlaneDetector->pts_per_roofplane,
@@ -510,8 +518,14 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     timings["ArrangementOptimiser"] =
         std::chrono::high_resolution_clock::now() - t0;
     // logger.debug("Completed ArrangementOptimiser");
-    // rec.log("world/optimised_partition", rerun::LineStrips3D(
-    // roofer::reconstruction::arr2polygons(arrangement) ));
+#ifdef RF_USE_RERUN
+    if (cfg->use_rerun) {
+      // Step 6: Visualize optimised partition (after graph-cut)
+      rec.log("world/optimised_partition",
+              rerun::LineStrips3D(
+                  roofer::reconstruction::arr2polygons(arrangement)));
+    }
+#endif
 
     // LoDs
     // attributes to be filled during reconstruction
