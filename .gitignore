@@ -40,3 +40,4 @@ build-deps-balazs.sh
 *.DS_Store
 
 data/
+out/

@@ -149,6 +149,7 @@ void multisolid_post_process(BuildingObject& building, RooferConfig* cfg,
   // logger.debug("Completed MeshTriangulator");
 #ifdef RF_USE_RERUN
   if (cfg->use_rerun) {
+    std::cout << "Logging MeshTriangulator" << std::endl;
     const auto& rec = rerun::RecordingStream::current();
     std::string worldname = fmt::format("world/lod{}/", (int)lod);
     rec.log(worldname + "MeshTriangulator",
@@ -166,8 +167,8 @@ void multisolid_post_process(BuildingObject& building, RooferConfig* cfg,
   // logger.debug("Completed PC2MeshDistCalculator. RMSE={}",
   //  PC2MeshDistCalculator->rms_error);
 #ifdef RF_USE_RERUN
-// rec.log(worldname+"PC2MeshDistCalculator",
-// rerun::Mesh3D(PC2MeshDistCalculator->triangles).with_vertex_normals(MeshTriangulator->normals).with_class_ids(MeshTriangulator->ring_ids));
+rec.log(worldname+"PC2MeshDistCalculator",
+rerun::Mesh3D(PC2MeshDistCalculator->triangles).with_vertex_normals(MeshTriangulator->normals).with_class_ids(MeshTriangulator->ring_ids));
 #endif
 
 #ifdef RF_USE_VAL3DITY
@@ -212,6 +213,7 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   // logger.debug("Roof partition has {} faces", arrangement.number_of_faces());
 #ifdef RF_USE_RERUN
   if (cfg->use_rerun) {
+    std::cout << "Logging ArrangementDissolver" << std::endl;
     rec.log(
         worldname + "ArrangementDissolver",
         rerun::LineStrips3D(roofer::reconstruction::arr2polygons(arrangement)));
@@ -221,8 +223,8 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   ArrangementSnapper->compute(arrangement);
   // logger.debug("Completed ArrangementSnapper");
 #ifdef RF_USE_RERUN
-// rec.log(worldname+"ArrangementSnapper", rerun::LineStrips3D(
-// roofer::reconstruction::arr2polygons(arrangement) ));
+rec.log(worldname+"ArrangementSnapper", rerun::LineStrips3D(
+roofer::reconstruction::arr2polygons(arrangement) ));
 #endif
 
   auto ArrangementExtruder =
@@ -232,6 +234,7 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   // logger.debug("Completed ArrangementExtruder");
 #ifdef RF_USE_RERUN
   if (cfg->use_rerun) {
+    std::cout << "Logging ArrangementExtruder" << std::endl;
     rec.log(worldname + "ArrangementExtruder",
             rerun::LineStrips3D(ArrangementExtruder->faces)
                 .with_class_ids(ArrangementExtruder->labels));
@@ -283,6 +286,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
   const auto& rec = rerun::RecordingStream::current();
 
   if (cfg->use_rerun) {
+    std::cout << "Logging raw_points" << std::endl;
     rec.log("world/raw_points",
             rerun::AnnotationContext({
                 rerun::AnnotationInfo(6, "BUILDING", rerun::Rgba32(255, 0, 0)),
