@@ -30,7 +30,6 @@
 #include <cstddef>
 #include <functional>
 #include <roofer/reconstruction/PlaneDetector.hpp>
-#include <roofer/reconstruction/PlaneDetectorBase.hpp>
 #include <utility>
 
 // #include <CGAL/number_utils.h>
@@ -233,167 +232,72 @@ namespace roofer {
           if (n * up < 0) boost::get<1>(pv) = -n;
         }
 
-        PointCollection points_vec;
-        vec3f normals_vec;
-        points_vec.reserve(points.size());
-
-        // IndexedPlanesWithPoints pts_per_roofplane;
-        // size_t horiz_roofplane_cnt=0;
-        // size_t slant_roofplane_cnt=0;
-        // size_t horiz_pt_cnt=0, total_pt_cnt=0, wall_pt_cnt=0,
-        // unsegmented_pt_cnt=0, total_plane_cnt=0;
         vec1f roof_elevations;
-
         std::vector<Plane> planes;
 
-        if (!cfg.use_ransac) {
-          // convert to lists required by the planedetector class
-          // size_t i=0;
+        // Instantiate RANSAC shape detection engine.
+        Efficient_ransac ransac;
+        // Provide input data.
+        ransac.set_input(pnl_points);
+        // Register planar shapes via template method.
+        ransac.add_shape_factory<RansacPlane>();
 
-          for (auto& pt : pnl_points) {
-            auto& p = boost::get<0>(pt);
-            auto& n = boost::get<1>(pt);
-            points_vec.push_back({float(CGAL::to_double(p.x())),
-                                  float(CGAL::to_double(p.y())),
-                                  float(CGAL::to_double(p.z()))});
-            normals_vec.push_back({float(CGAL::to_double(n.x())),
-                                   float(CGAL::to_double(n.y())),
-                                   float(CGAL::to_double(n.z()))});
-          }
-          // perform plane detection
-          planedect::PlaneDS PDS(points_vec, normals_vec, cfg.metrics_plane_k);
-          planedect::DistAndNormalTester DNTester(
-              cfg.metrics_plane_epsilon * cfg.metrics_plane_epsilon,
-              cfg.metrics_plane_normal_threshold, cfg.n_refit);
-          regiongrower::RegionGrower<planedect::PlaneDS, planedect::PlaneRegion>
-              R;
-          R.min_segment_count = cfg.metrics_plane_min_points;
-          if (points.size() > cfg.metrics_plane_min_points) {
-            if (cfg.with_limits) {
-              R.grow_regions_with_limits(PDS, DNTester, cfg.limit_n_regions,
-                                         cfg.limit_n_milliseconds);
-            } else {
-              R.grow_regions(PDS, DNTester);
+        // Set parameters for shape detection.
+        Efficient_ransac::Parameters parameters;
+        // Set probability to miss the largest primitive at each iteration.
+        parameters.probability = cfg.metrics_probability_ransac;
+        // Detect shapes with at least N points.
+        parameters.min_points = cfg.metrics_plane_min_points;
+        // Set maximum Euclidean distance between a point and a shape.
+        parameters.epsilon = cfg.metrics_plane_epsilon;
+        // Set maximum Euclidean distance between points to be clustered.
+        parameters.cluster_epsilon = cfg.metrics_cluster_epsilon_ransac;
+        // Set maximum normal deviation.
+        // 0.9 < dot(surface_normal, point_normal);
+        parameters.normal_threshold = cfg.metrics_plane_normal_threshold;
+        // Detect shapes.
+        ransac.detect(parameters);
+        // Get number of detected shapes.
+        total_plane_cnt = ransac.shapes().end() - ransac.shapes().begin();
+
+        unsigned shape_id = 0;
+        for (auto shape : ransac.shapes()) {
+          RansacPlane* ransac_plane = dynamic_cast<RansacPlane*>(shape.get());
+          Plane plane = static_cast<Plane>(*ransac_plane);
+          Vector n = plane.orthogonal_vector();
+          // this dot product is close to 0 for vertical planes
+          auto horizontality = CGAL::abs(n * Vector(0, 0, 1));
+          bool is_wall = horizontality < cfg.metrics_is_wall_threshold;
+          bool is_horizontal =
+              horizontality > cfg.metrics_is_horizontal_threshold;
+          // put slanted surface points at index -1 if we care only about
+          // horizontal surfaces
+          if (!is_wall) {
+            ++shape_id;
+            planes.push_back(plane);
+            std::vector<Point> segpts;
+            for (auto& i : shape->indices_of_assigned_points()) {
+              segpts.push_back(boost::get<0>(pnl_points[i]));
+              roof_elevations.push_back(
+                  float(boost::get<0>(pnl_points[i]).z()));
+              boost::get<2>(pnl_points[i]) = shape_id;
+              boost::get<3>(pnl_points[i]) = is_wall;
+              boost::get<9>(pnl_points[i]) = is_horizontal;
             }
-          }
-          total_plane_cnt = R.regions.size();
+            total_pt_cnt += segpts.size();
+            pts_per_roofplane[shape_id].second = segpts;
+            pts_per_roofplane[shape_id].first = plane;
 
-          for (auto region : R.regions) {
-            total_pt_cnt += region.inliers.size();
-          }
-
-          // classify horizontal/vertical planes using plane normals
-          unsigned shape_id = 0;
-          for (auto region : R.regions) {
-            if (region.get_region_id() == 0) continue;
-
-            auto& plane = region.plane;
-
-            Vector n = plane.orthogonal_vector();
-            // this dot product is close to 0 for vertical planes
-            auto horizontality = CGAL::abs(n * Vector(0, 0, 1));
-            bool is_wall = horizontality < cfg.metrics_is_wall_threshold;
-            bool is_horizontal =
-                horizontality > cfg.metrics_is_horizontal_threshold;
-
-            // put slanted surface points at index -1 if we care only about
-            // horzontal surfaces
-            if (!is_wall) {
-              ++shape_id;
-              planes.push_back(plane);
-              std::vector<Point> segpts;
-              for (auto& i : region.inliers) {
-                segpts.push_back(boost::get<0>(pnl_points[i]));
-                if (region.inliers.size() > cfg.metrics_plane_min_points * 4 ||
-                    total_pt_cnt <= cfg.metrics_plane_min_points * 4) {
-                  roof_elevations.push_back(
-                      float(boost::get<0>(pnl_points[i]).z()));
-                }
-                boost::get<2>(pnl_points[i]) = shape_id;
-                boost::get<3>(pnl_points[i]) = is_wall;
-                boost::get<9>(pnl_points[i]) = is_horizontal;
-              }
-              pts_per_roofplane[shape_id].second = segpts;
-              pts_per_roofplane[shape_id].first = plane;
-
-              if (is_horizontal) {
-                horiz_pt_cnt += segpts.size();
-              }
-            } else {  // is_wall
-              wall_pt_cnt += region.inliers.size();
+            if (is_horizontal) {
+              horiz_pt_cnt += segpts.size();
             }
-            if (is_horizontal)
-              ++horiz_roofplane_cnt;
-            else if (!is_wall && !is_horizontal)
-              ++slant_roofplane_cnt;
+          } else {  // is_wall
+            wall_pt_cnt += shape->indices_of_assigned_points().size();
           }
-
-        } else {  // use_ransac == true
-
-          // Instantiate shape detection engine.
-          Efficient_ransac ransac;
-          // Provide input data.
-          ransac.set_input(pnl_points);
-          // Register planar shapes via template method.
-          ransac.add_shape_factory<RansacPlane>();
-
-          // Set parameters for shape detection.
-          Efficient_ransac::Parameters parameters;
-          // Set probability to miss the largest primitive at each iteration.
-          parameters.probability = cfg.metrics_probability_ransac;
-          // Detect shapes with at least 200 points.
-          parameters.min_points = cfg.metrics_plane_min_points;
-          // Set maximum Euclidean distance between a point and a shape.
-          parameters.epsilon = cfg.metrics_plane_epsilon;
-          // Set maximum Euclidean distance between points to be clustered.
-          parameters.cluster_epsilon = cfg.metrics_cluster_epsilon_ransac;
-          // Set maximum normal deviation.
-          // 0.9 < dot(surface_normal, point_normal);
-          parameters.normal_threshold = cfg.metrics_plane_normal_threshold;
-          // Detect shapes.
-          ransac.detect(parameters);
-          // Print number of detected shapes.
-          total_plane_cnt = ransac.shapes().end() - ransac.shapes().begin();
-
-          unsigned shape_id = 0;
-          for (auto shape : ransac.shapes()) {
-            RansacPlane* ransac_plane = dynamic_cast<RansacPlane*>(shape.get());
-            Plane plane = static_cast<Plane>(*ransac_plane);
-            Vector n = plane.orthogonal_vector();
-            // this dot product is close to 0 for vertical planes
-            auto horizontality = CGAL::abs(n * Vector(0, 0, 1));
-            bool is_wall = horizontality < cfg.metrics_is_wall_threshold;
-            bool is_horizontal =
-                horizontality > cfg.metrics_is_horizontal_threshold;
-            // put slanted surface points at index -1 if we care only about
-            // horzontal surfaces
-            if (!is_wall) {
-              ++shape_id;
-              planes.push_back(plane);
-              std::vector<Point> segpts;
-              for (auto& i : shape->indices_of_assigned_points()) {
-                segpts.push_back(boost::get<0>(pnl_points[i]));
-                roof_elevations.push_back(
-                    float(boost::get<0>(pnl_points[i]).z()));
-                boost::get<2>(pnl_points[i]) = shape_id;
-                boost::get<3>(pnl_points[i]) = is_wall;
-                boost::get<9>(pnl_points[i]) = is_horizontal;
-              }
-              total_pt_cnt += segpts.size();
-              pts_per_roofplane[shape_id].second = segpts;
-              pts_per_roofplane[shape_id].first = plane;
-
-              if (is_horizontal) {
-                horiz_pt_cnt += segpts.size();
-              }
-            } else {  // is_wall
-              wall_pt_cnt += shape->indices_of_assigned_points().size();
-            }
-            if (is_horizontal)
-              ++horiz_roofplane_cnt;
-            else if (!is_wall && !is_horizontal)
-              ++slant_roofplane_cnt;
-          }
+          if (is_horizontal)
+            ++horiz_roofplane_cnt;
+          else if (!is_wall && !is_horizontal)
+            ++slant_roofplane_cnt;
         }
 
         // vec1i plane_id, is_wall, is_horizontal;

@@ -34,10 +34,7 @@ set(LIBRARY_HEADERS
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LineRegulariserBase.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/MeshTriangulator.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/PlaneDetector.hpp"
-    "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/PlaneDetectorBase.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/PlaneIntersector.hpp"
-    "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/RegionGrower.hpp"
-    "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/RegionGrower_DS_CGAL.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/SegmentRasteriser.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/SimplePolygonExtruder.hpp")
 set(LIBRARY_INCLUDES "${ROOFER_INCLUDE_DIR}")
