@@ -5,16 +5,48 @@
 
 # Usage: ./run_roofer_configs.sh <input_pc> <input_footprint> <output_dir> <config_dir> [use_rerun]
 
+POSITIONAL_ARGS=()
+USE_RERUN=false
+FILTER_VAL=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --filter)
+      FILTER_VAL="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --rerun)
+      USE_RERUN=true
+      shift # past argument
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift # past argument
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
+
+if [ "$#" -lt 4 ]; then
+    echo "Usage: $0 [--filter \"condition\"] [--rerun] <input_pc> <input_footprint> <output_dir> <config_dir> [use_rerun_legacy]"
+    exit 1
+fi
+
 INPUT_PC="$1"
 INPUT_FOOTPRINT="$2"
 OUTPUT_DIR="$3"
 CONFIG_DIR="$4"
-USE_RERUN="$5"
+# Allow legacy 5th arg as fallback for rerun
+LEGACY_RERUN="$5"
 
-# Check if correct number of arguments provided
-if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <input_pc> <input_footprint> <output_dir> <config_dir> [use_rerun]"
-    exit 1
+if [[ -n "$LEGACY_RERUN" && ( "$LEGACY_RERUN" == "true" || "$LEGACY_RERUN" == "yes" || "$LEGACY_RERUN" == "1" ) ]]; then
+    USE_RERUN=true
 fi
 
 # Path to the Roofer executable
@@ -39,13 +71,19 @@ if [ ! -d "$CONFIG_DIR" ]; then
     exit 1
 fi
 
-# Determine Rerun flag
-RERUN_FLAG=""
-if [[ "$USE_RERUN" == "true" ]] || [[ "$USE_RERUN" == "yes" ]] || [[ "$USE_RERUN" == "1" ]]; then
-    RERUN_FLAG="--rerun"
+# Determine Flags
+ROOFER_ARGS=()
+
+if [ "$USE_RERUN" = true ]; then
+    ROOFER_ARGS+=(--rerun)
     echo "Rerun logging ENABLED"
 else
     echo "Rerun logging DISABLED"
+fi
+
+if [ -n "$FILTER_VAL" ]; then
+    ROOFER_ARGS+=(--filter "$FILTER_VAL")
+    echo "Filtering ENABLED: $FILTER_VAL"
 fi
 
 echo "Starting Roofer batch processing..."
@@ -70,8 +108,7 @@ for config_file in "$CONFIG_DIR"/*.toml; do
 
     # Execute Roofer
     # We pass the input args to override whatever is in the config file
-    # Include RERUN_FLAG if set (unquoted to allow empty)
-    "$ROOFER_EXEC" -c "$config_file" $RERUN_FLAG "$INPUT_PC" "$INPUT_FOOTPRINT" "$current_output_dir"
+    "$ROOFER_EXEC" -c "$config_file" "${ROOFER_ARGS[@]}" "$INPUT_PC" "$INPUT_FOOTPRINT" "$current_output_dir"
 
     status=$?
     if [ $status -eq 0 ]; then
