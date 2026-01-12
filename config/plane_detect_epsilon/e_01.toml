@@ -1,0 +1,57 @@
+## Path to roofprint polygons source. Can be an OGR supported file (eg. GPKG) or database connection string.
+# polygon-source = ""
+## Output directory. The building models will be written to a CityJSONSequence file in this directory.
+# output-directory = ""
+
+### Input options
+## Building ID attribute to be used as identifier in CityJSONSeq output.
+# id-attribute =
+## Input attribute (boolean) to force individual buildings to always be reconstructed using simple extrusion (LoD 1.1).
+# force-lod11-attribute =
+## Input attribute (integer) containing the building's year of construction. Only relevant when multiple pointclouds are provided.
+# yoc-attribute =
+## Input attribute (float) with fallback terrain elevation for each building. Used in case no terrain elevation can be derived from the pointcloud. See also --h-terrain-strategy
+# h-terrain-attribute =
+## Input attribute (float) containing fallback roof height for buildings in case no roof height can be derived from the pointcloud.
+# h-roof-attribute =
+## Select this layer name from `<polygon-source>`. By default the first layer is used.
+# polygon-source-layer =
+## Specify WHERE clause in OGR SQL to select specfic features from `<polygon-source>`.
+# filter =
+## Axis aligned bounding box specifying the region of interest. Data outside of this region will be ignored.
+# box = [100, 100, 200, 200]
+## Manually set or override Spatial Reference System for input data.
+# srs = "EPSG:7415"
+## LAS classification code that contains the building points.
+bld-class = 6
+## LAS classification code that constains the ground points.
+grnd-class = 2
+## Disable/enable check if all supplied pointcloud files exist.
+skip-pc-check = false
+
+
+### Reconstruction options
+## Generate LoD 1.2 geometries in CityJSONSeq output.
+lod12 = false
+## Generate LoD 1.3 geometries in CityJSONSeq output.
+lod13 = false
+## Generate LoD 2.2 geometries in CityJSONSeq output.
+lod22 = true
+## Complexity factor for building model geometry. A number between 0.0 and 1.0. Higher values lead to more detailed building models, lower values to simpler models.
+complexity-factor = 0.888
+## Set to true to activate the procedure that clips parts from the input roofprint wherever patches of ground points are detected.May cause irregular outlines in reconstruction result.
+clip-terrain = true
+## Step height in meters, used for LoD 1.3 generalisation.Adjacent roofparts with a height discontinuity that is smaller than this value are merged. Only affects LoD 1.3 geometry.
+lod13-step-height = 3
+## Number of points used in nearest neighbour queries for plane detection. Higher values will lead to longer processing times, but may help with growing plane regions through areas with a poor point distribution.
+plane-detect-k = 15
+## Minimum number of points required for detecting a plane in the pointcloud.
+plane-detect-min-points = 15
+## Maximum distance (in meters) from inliers to plane during plane fitting procedure. Higher values offer more robustness against oversegmentation, but may result in less accurate plane detection.
+plane-detect-epsilon = 0.1
+## Strategy to determine terrain elevation that is used to set the height of building floors. `buffer_tile`: use the 5th percentile lowest elevation point in a 3 meter buffer around the roofprint. If no points are found, we fall back to the lowest elevation point in the current tile. This may give undesired results for hilly areas. `buffer_user`: same as `buffer_tile`, but with now with a fallback to the elevation provided via `--h-terrain-attribute`. `user`: always use the elevation provided via `--h-terrain-attribute`.
+# h-terrain-strategy = "buffer_tile"
+## Number of planes required for LoD 1.1 fallback. When more than this number of planes is detected, abort the reconstruction process and fallback to LoD 1.1 extrusion. Primarily used to limit the reconstruction time per building.
+lod11-fallback-planes = 900
+## Time for LOD 1.1 fallback in milliseconds. When more than this time is spent on expensive parts of the reconstruction algorithm, abort and fallback to LoD 1.1 extrusion.
+lod11-fallback-time = 1800000

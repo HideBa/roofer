@@ -378,7 +378,11 @@ int main(int argc, const char* argv[]) {
   if (handler.cfg_.use_rerun) {
     // Create a new `RecordingStream` and save to file
     std::cout << "===Rerun is enabled===" << std::endl;
-    rerun_stream.emplace("Roofer");
+    std::string app_id = "Roofer";
+    if (!handler._config_path.empty()) {
+      app_id += ": " + fs::path(handler._config_path).stem().string();
+    }
+    rerun_stream.emplace(app_id);
     // Spawn the viewer (opens a window)
     rerun_stream->spawn().exit_on_failure();
     // Save to .rrd file in output directory (more reliable than spawn)
