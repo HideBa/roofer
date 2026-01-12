@@ -378,11 +378,30 @@ int main(int argc, const char* argv[]) {
   if (handler.cfg_.use_rerun) {
     // Create a new `RecordingStream` and save to file
     std::cout << "===Rerun is enabled===" << std::endl;
-    std::string app_id = "Roofer";
+    std::string app_id = "roofer";
+    std::string rec_id;
     if (!handler._config_path.empty()) {
-      app_id += ": " + fs::path(handler._config_path).stem().string();
+      fs::path path(handler._config_path);
+
+      // App ID based on parent directory name (e.g., "roofer_complexity")
+      if (path.has_parent_path()) {
+        std::string dir_name = path.parent_path().filename().string();
+        if (!dir_name.empty() && dir_name != ".") {
+          app_id += "_" + dir_name;
+        }
+      }
+
+      // Recording ID based on config filename
+      rec_id = path.stem().string();
     }
-    rerun_stream.emplace(app_id);
+
+    if (rec_id.empty()) {
+      rec_id = "default_run";
+    }
+
+    std::cout << "[RERUN SETUP] Creating Stream - AppID: " << app_id
+              << " RecID: " << rec_id << std::endl;
+    rerun_stream.emplace(app_id, rec_id);
     // Spawn the viewer (opens a window)
     rerun_stream->spawn().exit_on_failure();
     // Save to .rrd file in output directory (more reliable than spawn)
@@ -390,9 +409,6 @@ int main(int argc, const char* argv[]) {
     // std::cout << "Saving Rerun data to: " << rrd_path << std::endl;
     // rerun_stream->save(rrd_path.string()).exit_on_failure();
     rerun_stream->set_global();
-    roofer::vec3f testpts;
-    testpts.push_back({1.0f, 2.0f, 3.0f});
-    rerun_stream->log("test", rerun::Points3D(testpts));
   }
 #endif
 
