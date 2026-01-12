@@ -255,6 +255,7 @@ namespace roofer::reconstruction {
       // output("ring_id").set(ring_id);
       // output("ring_order").set(ring_order);
       // output("is_start").set(is_start);
+      this->lines3d = lines3d;
     }
   };
 

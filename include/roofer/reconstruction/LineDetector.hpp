@@ -40,6 +40,7 @@ namespace roofer::reconstruction {
 
   struct LineDetectorInterface {
     SegmentCollection edge_segments;
+    SegmentCollection lines3d;
 
     // add_vector_input("edge_points", {typeid(LinearRing)});
     // add_input("roofplane_ids", typeid(vec1i));

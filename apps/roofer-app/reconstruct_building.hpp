@@ -152,6 +152,8 @@ void multisolid_post_process(BuildingObject& building, RooferConfig* cfg,
     std::cout << "Logging MeshTriangulator" << std::endl;
     const auto& rec = rerun::RecordingStream::current();
     std::string worldname = fmt::format("world/lod{}/", (int)lod);
+    auto& logger = roofer::logger::Logger::get_logger();
+    logger.info("Rerun logging: {}MeshTriangulator", worldname);
     rec.log(worldname + "MeshTriangulator",
             rerun::Mesh3D(MeshTriangulator->triangles)
                 .with_vertex_normals(MeshTriangulator->normals)
@@ -215,7 +217,7 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   // logger.debug("Roof partition has {} faces", arrangement.number_of_faces());
 #ifdef RF_USE_RERUN
   if (cfg->use_rerun) {
-    std::cout << "Logging ArrangementDissolver" << std::endl;
+    logger.info("Rerun logging: {}ArrangementDissolver", worldname);
     rec.log(
         worldname + "ArrangementDissolver",
         rerun::LineStrips3D(roofer::reconstruction::arr2polygons(arrangement)));
@@ -237,7 +239,7 @@ std::unordered_map<int, roofer::Mesh> extrude_lod22(
   // logger.debug("Completed ArrangementExtruder");
 #ifdef RF_USE_RERUN
   if (cfg->use_rerun) {
-    std::cout << "Logging ArrangementExtruder" << std::endl;
+    logger.info("Rerun logging: {}ArrangementExtruder", worldname);
     rec.log(worldname + "ArrangementExtruder",
             rerun::LineStrips3D(ArrangementExtruder->faces)
                 .with_class_ids(ArrangementExtruder->labels));
@@ -289,6 +291,8 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
   const auto& rec = rerun::RecordingStream::current();
 
   if (cfg->use_rerun) {
+    logger.info(
+        "Rerun logging: world/raw_points, building_points, ground_points");
     rec.log("world/raw_points",
             rerun::AnnotationContext({
                 rerun::AnnotationInfo(6, "BUILDING", rerun::Rgba32(255, 0, 0)),
@@ -381,6 +385,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
       // Step 1: Visualize detected planes (region growing result)
+      logger.info("Rerun logging: world/segmented_points");
       rec.log("world/segmented_points",
               rerun::Points3D(building.pointcloud_building)
                   .with_class_ids(PlaneDetector->plane_id));
@@ -391,11 +396,13 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     AlphaShaper->compute(PlaneDetector->pts_per_roofplane,
                          {.thres_alpha = cfg->thres_alpha});
     timings["AlphaShaper"] = std::chrono::high_resolution_clock::now() - t0;
-    // logger.debug("Completed AlphaShaper (roof), found {} rings, {} labels",
-    //  AlphaShaper->alpha_rings.size(),
-    //  AlphaShaper->roofplane_ids.size());
+    logger.info("Completed AlphaShaper (roof), found {} rings, {} labels",
+                AlphaShaper->alpha_rings.size(),
+                AlphaShaper->roofplane_ids.size());
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: alpha rings {}", AlphaShaper->alpha_rings);
+      logger.info("Rerun logging: world/alpha_rings_roof");
       rec.log("world/alpha_rings_roof",
               rerun::LineStrips3D(AlphaShaper->alpha_rings)
                   .with_class_ids(AlphaShaper->roofplane_ids));
@@ -411,6 +418,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     //  AlphaShaper_ground->roofplane_ids.size());
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/alpha_rings_ground");
       rec.log("world/alpha_rings_ground",
               rerun::LineStrips3D(AlphaShaper_ground->alpha_rings)
                   .with_class_ids(AlphaShaper_ground->roofplane_ids));
@@ -425,8 +433,12 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     // logger.debug("Completed LineDetector");
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/boundary_lines");
       rec.log("world/boundary_lines",
               rerun::LineStrips3D(LineDetector->edge_segments));
+      logger.info("Rerun logging: world/line_clusters");
+      rec.log("world/line_clusters",
+              rerun::LineStrips3D(LineDetector->lines3d));
     }
 #endif
 
@@ -447,6 +459,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     // logger.debug("Completed PlaneIntersector");
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/intersection_lines");
       rec.log("world/intersection_lines",
               rerun::LineStrips3D(PlaneIntersector->segments));
     }
@@ -462,6 +475,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     // logger.debug("Completed LineRegulariser");
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/regularised_lines");
       rec.log("world/regularised_lines",
               rerun::LineStrips3D(LineRegulariser->regularised_edges));
     }
@@ -479,6 +493,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
 
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/heightfield");
       auto heightfield_copy = SegmentRasteriser->heightfield;
       heightfield_copy.set_nodata(0);
       rec.log(
@@ -502,6 +517,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     // arrangement.number_of_faces());
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      logger.info("Rerun logging: world/initial_partition");
       rec.log("world/initial_partition",
               rerun::LineStrips3D(
                   roofer::reconstruction::arr2polygons(arrangement)));
@@ -527,6 +543,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
       // Step 6: Visualize optimised partition (after graph-cut)
+      logger.info("Rerun logging: world/optimised_partition");
       rec.log("world/optimised_partition",
               rerun::LineStrips3D(
                   roofer::reconstruction::arr2polygons(arrangement)));
