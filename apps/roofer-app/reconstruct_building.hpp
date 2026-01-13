@@ -167,10 +167,10 @@ void multisolid_post_process(BuildingObject& building, RooferConfig* cfg,
   // logger.debug("Completed PC2MeshDistCalculator. RMSE={}",
   //  PC2MeshDistCalculator->rms_error);
 #ifdef RF_USE_RERUN
-  rec.log(worldname + "PC2MeshDistCalculator",
-          rerun::Mesh3D(PC2MeshDistCalculator->triangles)
-              .with_vertex_normals(MeshTriangulator->normals)
-              .with_class_ids(MeshTriangulator->ring_ids));
+  // rec.log(worldname + "PC2MeshDistCalculator",
+  //         rerun::Mesh3D(PC2MeshDistCalculator->triangles)
+  //             .with_vertex_normals(MeshTriangulator->normals)
+  //             .with_class_ids(MeshTriangulator->ring_ids));
 #endif
 
 #ifdef RF_USE_VAL3DITY
