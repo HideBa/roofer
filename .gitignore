@@ -41,3 +41,5 @@ build-deps-balazs.sh
 
 data/
 out/
+
+.cache

@@ -11,7 +11,8 @@
         "RF_USE_LOGGER_SPDLOG": "OFF",
         "RF_BUILD_TESTING": "OFF",
         "RF_BUILD_APPS": "ON",
-        "RF_BUILD_BINDINGS": "OFF"
+        "RF_BUILD_BINDINGS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
@@ -40,7 +41,8 @@
         "RF_USE_LOGGER_SPDLOG": "OFF",
         "RF_BUILD_TESTING": "OFF",
         "RF_BUILD_APPS": "ON",
-        "RF_BUILD_BINDINGS": "OFF"
+        "RF_BUILD_BINDINGS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
