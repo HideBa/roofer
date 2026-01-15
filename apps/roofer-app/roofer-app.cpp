@@ -71,6 +71,7 @@ namespace fs = std::filesystem;
 #include <roofer/reconstruction/PlaneIntersector.hpp>
 #include <roofer/reconstruction/SegmentRasteriser.hpp>
 #include <roofer/reconstruction/SimplePolygonExtruder.hpp>
+#include <CGAL/Delaunay_triangulation_2.h>
 
 // serialisation
 #include <roofer/io/CityJsonWriter.hpp>

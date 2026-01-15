@@ -482,10 +482,125 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
 
 #ifdef RF_USE_RERUN
     if (cfg->use_rerun) {
+      // Log rasterized original point cloud using Delaunay triangulation
+      // interpolation Creates a TIN and interpolates height for each raster
+      // cell
+      {
+        auto box = building.footprint.box();
+        auto boxmin = box.min();
+        auto boxmax = box.max();
+
+        // Cellsize of 0.25m provides good detail without being too fine
+        float cellsize = 0.25f;
+
+        roofer::RasterTools::Raster pc_raster(cellsize, boxmin[0] - 0.5,
+                                              boxmax[0] + 0.5, boxmin[1] - 0.5,
+                                              boxmax[1] + 0.5);
+        pc_raster.prefill_arrays(roofer::RasterTools::MAX);
+
+        // Build Delaunay triangulation from building point cloud
+        typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+        typedef CGAL::Delaunay_triangulation_2<K> Delaunay;
+        typedef K::Point_2 Point_2;
+
+        // Create a map from 2D point to z-value for height lookup
+        std::vector<std::pair<Point_2, float>> points_with_z;
+        points_with_z.reserve(building.pointcloud_building.size());
+
+        for (const auto& p : building.pointcloud_building) {
+          points_with_z.emplace_back(Point_2(p[0], p[1]), p[2]);
+        }
+
+        // Build the triangulation
+        Delaunay dt;
+        for (const auto& pz : points_with_z) {
+          dt.insert(pz.first);
+        }
+
+        // Create a map from Point_2 to z-value for quick lookup
+        std::map<std::pair<double, double>, float> z_lookup;
+        for (const auto& pz : points_with_z) {
+          auto key = std::make_pair(CGAL::to_double(pz.first.x()),
+                                    CGAL::to_double(pz.first.y()));
+          // Use max z if multiple points at same location
+          auto it = z_lookup.find(key);
+          if (it == z_lookup.end() || pz.second > it->second) {
+            z_lookup[key] = pz.second;
+          }
+        }
+
+        // For each raster cell, find the containing triangle and interpolate
+        for (size_t col = 0; col < pc_raster.dimx_; ++col) {
+          for (size_t row = 0; row < pc_raster.dimy_; ++row) {
+            auto cell_pt = pc_raster.getPointFromRasterCoords(col, row);
+            Point_2 query(cell_pt[0], cell_pt[1]);
+
+            // Locate the triangle containing this point
+            auto face = dt.locate(query);
+            if (face == nullptr || dt.is_infinite(face)) {
+              continue;  // Point outside convex hull
+            }
+
+            // Get the three vertices of the triangle
+            auto v0 = face->vertex(0)->point();
+            auto v1 = face->vertex(1)->point();
+            auto v2 = face->vertex(2)->point();
+
+            // Look up z values for each vertex
+            auto key0 = std::make_pair(CGAL::to_double(v0.x()),
+                                       CGAL::to_double(v0.y()));
+            auto key1 = std::make_pair(CGAL::to_double(v1.x()),
+                                       CGAL::to_double(v1.y()));
+            auto key2 = std::make_pair(CGAL::to_double(v2.x()),
+                                       CGAL::to_double(v2.y()));
+
+            auto it0 = z_lookup.find(key0);
+            auto it1 = z_lookup.find(key1);
+            auto it2 = z_lookup.find(key2);
+
+            if (it0 == z_lookup.end() || it1 == z_lookup.end() ||
+                it2 == z_lookup.end()) {
+              continue;  // Shouldn't happen but safety check
+            }
+
+            float z0 = it0->second;
+            float z1 = it1->second;
+            float z2 = it2->second;
+
+            // Compute barycentric coordinates for interpolation
+            double x = CGAL::to_double(query.x());
+            double y = CGAL::to_double(query.y());
+            double x0 = CGAL::to_double(v0.x()), y0 = CGAL::to_double(v0.y());
+            double x1 = CGAL::to_double(v1.x()), y1 = CGAL::to_double(v1.y());
+            double x2 = CGAL::to_double(v2.x()), y2 = CGAL::to_double(v2.y());
+
+            double denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+            if (std::abs(denom) < 1e-10) continue;  // Degenerate triangle
+
+            double w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom;
+            double w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom;
+            double w2 = 1.0 - w0 - w1;
+
+            // Interpolate z value
+            float z_interp = static_cast<float>(w0 * z0 + w1 * z1 + w2 * z2);
+
+            pc_raster.set_val(col, row, z_interp);
+          }
+        }
+
+        pc_raster.set_nodata(0);
+
+        rec.log("pointcloud_raster",
+                rerun::DepthImage(pc_raster.vals_->data(),
+                                  {static_cast<uint32_t>(pc_raster.dimx_),
+                                   static_cast<uint32_t>(pc_raster.dimy_)}));
+      }
+
+      // Log rasterized segments (heightfield from SegmentRasteriser)
       auto heightfield_copy = SegmentRasteriser->heightfield;
       heightfield_copy.set_nodata(0);
       rec.log(
-          "world/heightfield",
+          "heightfield",
           rerun::DepthImage(heightfield_copy.vals_->data(),
                             {static_cast<uint32_t>(heightfield_copy.dimx_),
                              static_cast<uint32_t>(heightfield_copy.dimy_)}));
