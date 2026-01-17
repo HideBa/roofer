@@ -163,6 +163,7 @@ struct RooferConfig {
   float line_detect_epsilon = 1.000000;
   float thres_alpha = 0.250000;
   float thres_reg_line_dist = 0.800000;
+  float thres_reg_line_angle = 0.150000;
   float thres_reg_line_ext = 3.000000;
 
   // output attribute names
@@ -523,9 +524,30 @@ struct RooferConfigHandler {
         "Time for LOD 1.1 fallback in milliseconds. When more than this time "
         "is spent on expensive parts of the reconstruction algorithm, abort "
         "and fallback to LoD 1.1 extrusion.",
-        cfg_.lod11_fallback_time, {check::HigherThan<int>(0)}),
+        cfg_.lod11_fallback_time, {check::HigherThan<int>(0)});
+    reconstruction.add(
+        "thres_alpha",
+        "Alpha value for alpha shape computation. Controls the level of "
+        "detail of extracted plane boundaries. Lower values = more detail.",
+        cfg_.thres_alpha, {check::HigherThan<float>(0)});
+    reconstruction.add(
+        "thres_reg_line_dist",
+        "Distance threshold for line regularisation clustering (in meters). "
+        "Parallel lines within this distance are merged.",
+        cfg_.thres_reg_line_dist, {check::HigherThan<float>(0)});
+    reconstruction.add(
+        "thres_reg_line_angle",
+        "Angle threshold for line regularisation clustering (in radians). "
+        "Lines with orientations within this angle are considered parallel. "
+        "Default 0.15 rad ≈ 8.6 degrees.",
+        cfg_.thres_reg_line_angle, {check::HigherThan<float>(0)});
+    reconstruction.add(
+        "thres_reg_line_ext",
+        "Extension for regularised lines (in meters). Lines are extended by "
+        "this amount to ensure proper intersection.",
+        cfg_.thres_reg_line_ext, {check::HigherOrEqualTo<float>(0)});
 
-        output.add("tiling", "Enable or disable output tiling.", _tiling);
+    output.add("tiling", "Enable or disable output tiling.", _tiling);
     output.add("tilesize", "Tilesize for rectangular output tiles in meters.",
                cfg_.tilesize, {check::HigherThan<roofer::arr2f>({0, 0})});
     output.add("split-cjseq",

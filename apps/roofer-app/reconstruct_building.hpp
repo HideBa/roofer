@@ -384,6 +384,20 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
       rec.log("world/segmented_points",
               rerun::Points3D(building.pointcloud_building)
                   .with_class_ids(PlaneDetector->plane_id));
+
+      // Visualize point normals as arrows (scaled down for visibility)
+      // Scale normals to a reasonable length (e.g., 0.3m)
+      const float normal_scale = 0.3f;
+      roofer::vec3f scaled_normals;
+      scaled_normals.reserve(PlaneDetector->point_normals.size());
+      for (const auto& n : PlaneDetector->point_normals) {
+        scaled_normals.push_back(
+            {n[0] * normal_scale, n[1] * normal_scale, n[2] * normal_scale});
+      }
+      rec.log("world/point_normals",
+              rerun::Arrows3D::from_vectors(scaled_normals)
+                  .with_origins(building.pointcloud_building)
+                  .with_colors({{100, 200, 255}}));  // Light blue
     }
 #endif
     t0 = std::chrono::high_resolution_clock::now();
@@ -457,9 +471,15 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
 
     t0 = std::chrono::high_resolution_clock::now();
     auto LineRegulariser = roofer::reconstruction::createLineRegulariser();
+    logger.debug(
+        "LineRegulariser config: dist_threshold={}, angle_threshold={}, "
+        "extension={}",
+        cfg->thres_reg_line_dist, cfg->thres_reg_line_angle,
+        cfg->thres_reg_line_ext);
     LineRegulariser->compute(LineDetector->edge_segments,
                              PlaneIntersector->segments,
                              {.dist_threshold = cfg->thres_reg_line_dist,
+                              .angle_threshold = cfg->thres_reg_line_angle,
                               .extension = cfg->thres_reg_line_ext});
     timings["LineRegulariser"] = std::chrono::high_resolution_clock::now() - t0;
     // logger.debug("Completed LineRegulariser");

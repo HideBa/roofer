@@ -57,6 +57,7 @@ namespace roofer::reconstruction {
 
   struct PlaneDetectorInterface {
     vec1i plane_id;
+    vec3f point_normals;  // Estimated normals for each point
     IndexedPlanesWithPoints pts_per_roofplane;
     std::map<size_t, std::map<size_t, size_t> > plane_adjacencies;
 

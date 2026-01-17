@@ -401,6 +401,11 @@ namespace roofer {
           auto pid = boost::get<2>(p);
           if (pid == 0) ++unsegmented_pt_cnt;
           plane_id.push_back(pid);
+          // Store the normal for visualization
+          auto& n = boost::get<1>(p);
+          point_normals.push_back({float(CGAL::to_double(n.x())),
+                                   float(CGAL::to_double(n.y())),
+                                   float(CGAL::to_double(n.z()))});
           // is_wall.push_back(boost::get<3>(p));
           // is_horizontal.push_back(boost::get<9>(p));
         }
