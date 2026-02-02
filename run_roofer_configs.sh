@@ -3,11 +3,19 @@
 # run_roofer_configs.sh
 # Runs Roofer with multiple configurations found in a specified directory.
 
-# Usage: ./run_roofer_configs.sh <input_pc> <input_footprint> <output_dir> <config_dir> [use_rerun]
+# Usage:
+#   With inputs on command line:
+#     ./run_roofer_configs.sh <input_pc> <input_footprint> <output_dir> <config_dir>
+#   With inputs in config files:
+#     ./run_roofer_configs.sh <output_dir> <config_dir>
+#   Or with named arguments:
+#     ./run_roofer_configs.sh --input-pc <pc> --input-footprint <fp> <output_dir> <config_dir>
 
 POSITIONAL_ARGS=()
 USE_RERUN=false
 FILTER_VAL=""
+INPUT_PC=""
+INPUT_FOOTPRINT=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -19,6 +27,16 @@ while [[ $# -gt 0 ]]; do
     --rerun)
       USE_RERUN=true
       shift # past argument
+      ;;
+    --input-pc)
+      INPUT_PC="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --input-footprint)
+      INPUT_FOOTPRINT="$2"
+      shift # past argument
+      shift # past value
       ;;
     -*|--*)
       echo "Unknown option $1"
@@ -33,17 +51,51 @@ done
 
 set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
 
-if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 [--filter \"condition\"] [--rerun] <input_pc> <input_footprint> <output_dir> <config_dir> [use_rerun_legacy]"
+# Determine argument mode:
+# - 4 positional args: <input_pc> <input_footprint> <output_dir> <config_dir>
+# - 2 positional args: <output_dir> <config_dir> (inputs from config or named args)
+if [ "$#" -eq 4 ]; then
+    # Legacy mode: all 4 positional args provided
+    INPUT_PC="$1"
+    INPUT_FOOTPRINT="$2"
+    OUTPUT_DIR="$3"
+    CONFIG_DIR="$4"
+    LEGACY_RERUN=""
+elif [ "$#" -ge 5 ]; then
+    # Legacy mode with optional rerun flag
+    INPUT_PC="$1"
+    INPUT_FOOTPRINT="$2"
+    OUTPUT_DIR="$3"
+    CONFIG_DIR="$4"
+    LEGACY_RERUN="$5"
+elif [ "$#" -eq 2 ]; then
+    # Minimal mode: only output_dir and config_dir
+    # INPUT_PC and INPUT_FOOTPRINT may come from --input-pc/--input-footprint or config files
+    OUTPUT_DIR="$1"
+    CONFIG_DIR="$2"
+    LEGACY_RERUN=""
+elif [ "$#" -eq 3 ]; then
+    # Could be: <output_dir> <config_dir> <legacy_rerun> OR missing one input
+    # We'll treat it as output_dir, config_dir, legacy_rerun
+    OUTPUT_DIR="$1"
+    CONFIG_DIR="$2"
+    LEGACY_RERUN="$3"
+else
+    echo "Usage: $0 [options] <output_dir> <config_dir>"
+    echo "       $0 [options] <input_pc> <input_footprint> <output_dir> <config_dir>"
+    echo ""
+    echo "Options:"
+    echo "  --input-pc <path>        Path to input point cloud (optional if in config)"
+    echo "  --input-footprint <path> Path to input footprint (optional if in config)"
+    echo "  --filter <condition>     Filter condition"
+    echo "  --rerun                  Enable rerun logging"
+    echo ""
+    echo "Input files can be provided either:"
+    echo "  1. As positional arguments (4-arg mode)"
+    echo "  2. As named arguments (--input-pc, --input-footprint)"
+    echo "  3. In the config TOML files (pointcloud-path, polygon-source)"
     exit 1
 fi
-
-INPUT_PC="$1"
-INPUT_FOOTPRINT="$2"
-OUTPUT_DIR="$3"
-CONFIG_DIR="$4"
-# Allow legacy 5th arg as fallback for rerun
-LEGACY_RERUN="$5"
 
 if [[ -n "$LEGACY_RERUN" && ( "$LEGACY_RERUN" == "true" || "$LEGACY_RERUN" == "yes" || "$LEGACY_RERUN" == "1" ) ]]; then
     USE_RERUN=true
@@ -87,8 +139,16 @@ if [ -n "$FILTER_VAL" ]; then
 fi
 
 echo "Starting Roofer batch processing..."
-echo "Input PC: $INPUT_PC"
-echo "Input Footprint: $INPUT_FOOTPRINT"
+if [ -n "$INPUT_PC" ]; then
+    echo "Input PC: $INPUT_PC"
+else
+    echo "Input PC: (from config files)"
+fi
+if [ -n "$INPUT_FOOTPRINT" ]; then
+    echo "Input Footprint: $INPUT_FOOTPRINT"
+else
+    echo "Input Footprint: (from config files)"
+fi
 echo "Configs: $CONFIG_DIR"
 echo "Output: $OUTPUT_DIR"
 
@@ -106,9 +166,20 @@ for config_file in "$CONFIG_DIR"/*.toml; do
     echo "Processing config: $filename"
     echo "Output directory: $current_output_dir"
 
+    # Build the command arguments
+    # Only include input files if they were provided (via CLI or named args)
+    CMD_ARGS=(-c "$config_file" "${ROOFER_ARGS[@]}")
+
+    if [ -n "$INPUT_PC" ] && [ -n "$INPUT_FOOTPRINT" ]; then
+        # Both inputs provided - pass them to override config
+        CMD_ARGS+=("$INPUT_PC" "$INPUT_FOOTPRINT" "$current_output_dir")
+    else
+        # Inputs should come from config file, only pass output dir as positional arg
+        CMD_ARGS+=("$current_output_dir")
+    fi
+
     # Execute Roofer
-    # We pass the input args to override whatever is in the config file
-    "$ROOFER_EXEC" -c "$config_file" "${ROOFER_ARGS[@]}" "$INPUT_PC" "$INPUT_FOOTPRINT" "$current_output_dir"
+    "$ROOFER_EXEC" "${CMD_ARGS[@]}"
 
     status=$?
     if [ $status -eq 0 ]; then
