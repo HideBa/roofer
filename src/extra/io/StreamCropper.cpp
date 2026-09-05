@@ -50,9 +50,15 @@ namespace roofer::io {
     std::unordered_map<std::unique_ptr<arr3f>, std::vector<size_t>>
         points_overlap;  // point, [poly id's], these are points that intersect
                          // with multiple polygons
+    struct PointWithPolygons {
+      arr3f point;
+      std::vector<size_t> polygon_ids;
+    };
+    std::vector<PointWithPolygons> unclassified_points;
 
     int ground_class, building_class;
     bool handle_overlap_points;
+    bool has_classified_points = false;
 
    public:
     float min_ground_elevation = std::numeric_limits<float>::max();
@@ -134,6 +140,11 @@ namespace roofer::io {
       // look up grid index cell and do pip for all polygons retreived from that
       // cell
       min_ground_elevation = std::min(min_ground_elevation, point[2]);
+      bool is_ground = point_class == ground_class;
+      bool is_building = point_class == building_class;
+      if (is_ground || is_building) {
+        has_classified_points = true;
+      }
 
       size_t lincoord = pindex.getLinearCoord(point[0], point[1]);
       if (lincoord >= pindex_vals.size() || lincoord < 0) {
@@ -155,32 +166,35 @@ namespace roofer::io {
       //    representing the ground/floor elevation of the buildings in that
       //    grid cell.
       std::vector<size_t> poly_intersect;
+      std::vector<size_t> unclassified_poly_intersect;
       for (size_t& poly_i : pindex_vals[lincoord]) {
         if (buf_poly_grids[poly_i]->test(point)) {
           auto& point_cloud = point_clouds.at(poly_i);
           auto classification =
               point_cloud.attributes.get_if<int>("classification");
 
-          if (point_class == ground_class) {
+          if (is_ground) {
             z_ground[poly_i].push_back(point[2]);
           }
 
           if (poly_grids[poly_i]->test(point)) {
-            if (point_class == ground_class) {
+            if (is_ground) {
               point_cloud.push_back(point);
               (*classification).push_back(ground_class);
-            } else if (point_class == building_class) {
+            } else if (is_building) {
               poly_intersect.push_back(poly_i);
+            } else {
+              unclassified_poly_intersect.push_back(poly_i);
             }
             acquisition_years[poly_i] =
                 std::max(acqusition_year, acquisition_years[poly_i]);
-          } else if (point_class == ground_class) {
+          } else if (is_ground) {
             ground_buffer_points[poly_i].push_back(point);
           }
         }
       }
 
-      if (point_class == building_class) {
+      if (is_building) {
         if (poly_intersect.size() > 1 && handle_overlap_points) {
           // decide later to which polygon to assign this point to
           points_overlap[std::make_unique<arr3f>(point)] = poly_intersect;
@@ -194,6 +208,10 @@ namespace roofer::io {
             (*classification).push_back(building_class);
           }
         }
+      }
+      if (!is_ground && !is_building && !unclassified_poly_intersect.empty()) {
+        unclassified_points.push_back(
+            PointWithPolygons{point, std::move(unclassified_poly_intersect)});
       }
     }
 
@@ -221,6 +239,26 @@ namespace roofer::io {
       std::unordered_map<size_t, PolyInfo> poly_info;
 
       auto& logger = logger::Logger::get_logger();
+
+      if (!has_classified_points && !unclassified_points.empty()) {
+        logger.warning(
+            "No points matching configured building/ground classes were found. "
+            "Treating unclassified points inside footprints as building points.");
+        for (auto& [p, poly_intersect] : unclassified_points) {
+          if (poly_intersect.size() > 1 && handle_overlap_points) {
+            points_overlap[std::make_unique<arr3f>(p)] = std::move(poly_intersect);
+          } else {
+            for (auto& poly_i : poly_intersect) {
+              auto& point_cloud = point_clouds.at(poly_i);
+              auto classification =
+                  point_cloud.attributes.get_if<int>("classification");
+              point_cloud.push_back(p);
+              (*classification).push_back(building_class);
+            }
+          }
+        }
+      }
+      unclassified_points.clear();
 
       // compute totals and statistics about pointcloud for each polygon
       // - polygon area
@@ -256,7 +294,7 @@ namespace roofer::io {
 
       // merge buffer ground points into regular point_clouds now that the
       // proper counts have been established
-      for (size_t poly_i; poly_i < polygons.size(); poly_i++) {
+      for (size_t poly_i = 0; poly_i < polygons.size(); poly_i++) {
         auto& point_cloud = point_clouds.at(poly_i);
         auto classification =
             point_cloud.attributes.get_if<int>("classification");

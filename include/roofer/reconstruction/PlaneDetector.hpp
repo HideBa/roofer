@@ -53,6 +53,12 @@ namespace roofer::reconstruction {
     bool with_limits = false;
     int limit_n_regions = 100;
     int limit_n_milliseconds = 10000;
+
+    // Multi-plane point assignment for ridge/intersection points
+    // Points within this distance of multiple planes will be added to all
+    // relevant planes in pts_per_roofplane. Set to 0 to disable.
+    // Default: same as metrics_plane_epsilon
+    float intersection_epsilon = -1.0f;  // -1 means use metrics_plane_epsilon
   };
 
   struct PlaneDetectorInterface {
@@ -65,6 +71,9 @@ namespace roofer::reconstruction {
     size_t slant_roofplane_cnt = 0;
     size_t horiz_pt_cnt = 0, total_pt_cnt = 0, wall_pt_cnt = 0,
            unsegmented_pt_cnt = 0, total_plane_cnt = 0;
+
+    // Count of points added to additional planes during multi-plane assignment
+    size_t intersection_point_additions = 0;
 
     std::string roof_type;
     float roof_elevation_70p;

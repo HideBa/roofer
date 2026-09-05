@@ -332,6 +332,7 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
           .with_limits = true,
           .limit_n_regions = cfg->lod11_fallback_planes,
           .limit_n_milliseconds = cfg->lod11_fallback_time,
+          .intersection_epsilon = cfg->intersection_epsilon,
       };
       PlaneDetector->detect(building.pointcloud_building, plane_detector_cfg);
       timings["PlaneDetector"] = std::chrono::high_resolution_clock::now() - t0;

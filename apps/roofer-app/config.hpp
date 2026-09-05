@@ -165,6 +165,7 @@ struct RooferConfig {
   float thres_reg_line_dist = 0.800000;
   float thres_reg_line_angle = 0.150000;
   float thres_reg_line_ext = 3.000000;
+  float intersection_epsilon = -1.0f;  // Multi-plane point assignment threshold
 
   // output attribute names
   std::string a_success = "rf_success";
@@ -546,6 +547,14 @@ struct RooferConfigHandler {
         "Extension for regularised lines (in meters). Lines are extended by "
         "this amount to ensure proper intersection.",
         cfg_.thres_reg_line_ext, {check::HigherOrEqualTo<float>(0)});
+    reconstruction.add(
+        "intersection-epsilon",
+        "Distance threshold for multi-plane point assignment (in meters). "
+        "Points within this distance of multiple planes are added to all "
+        "relevant planes, improving boundary extraction at ridges and plane "
+        "intersections. Set to 0 to disable. Default: -1 (use "
+        "plane-detect-epsilon).",
+        cfg_.intersection_epsilon, {});
 
     output.add("tiling", "Enable or disable output tiling.", _tiling);
     output.add("tilesize", "Tilesize for rectangular output tiles in meters.",

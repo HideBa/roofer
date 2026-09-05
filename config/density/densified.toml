@@ -59,4 +59,4 @@ lod11-fallback-time = 1800000
 ### Point cloud configuration (must be at end of file)
 [[pointclouds]]
 name = "wippolder"
-source = ["/Users/hbbaba/tudelft/roofer/data/densified.las"]
+source = ["/Users/hbbaba/tudelft/roofer/data/densified_wo_original_x100.las"]

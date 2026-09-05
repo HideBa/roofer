@@ -473,8 +473,70 @@ namespace roofer {
 
         // END Regularize detected planes.
 
+        // Compute plane adjacencies FIRST (needed for multi-plane assignment)
         AdjacencyFinder adj_finder(pnl_points, cfg.metrics_plane_k);
         plane_adjacencies = adj_finder.adjacencies;
+
+        // Multi-plane point assignment for ridge/intersection points
+        // Only add points to ADJACENT planes to avoid false positives
+        float intersection_threshold_sq =
+            cfg.intersection_epsilon < 0
+                ? cfg.metrics_plane_epsilon * cfg.metrics_plane_epsilon
+                : cfg.intersection_epsilon * cfg.intersection_epsilon;
+
+        if (intersection_threshold_sq > 0 && pts_per_roofplane.size() > 1) {
+          // For each point, check distance ONLY to adjacent planes
+          for (size_t pt_idx = 0; pt_idx < pnl_points.size(); ++pt_idx) {
+            auto primary_plane_id = boost::get<2>(pnl_points[pt_idx]);
+            if (primary_plane_id == 0) continue;  // Skip unsegmented points
+
+            const auto& pt = boost::get<0>(pnl_points[pt_idx]);
+
+            // Find adjacent planes for this point's primary plane
+            // plane_adjacencies stores: [higher_id][lower_id] = count
+            // So we need to check both directions
+
+            // Check adjacencies where primary_plane_id is the higher ID
+            auto adj_it_high = plane_adjacencies.find(primary_plane_id);
+            if (adj_it_high != plane_adjacencies.end()) {
+              for (const auto& [adjacent_plane_id, adjacency_count] :
+                   adj_it_high->second) {
+                auto plane_it =
+                    pts_per_roofplane.find(static_cast<int>(adjacent_plane_id));
+                if (plane_it == pts_per_roofplane.end()) continue;
+
+                const Plane& adjacent_plane = plane_it->second.first;
+                double dist_sq = CGAL::squared_distance(adjacent_plane, pt);
+
+                if (dist_sq < intersection_threshold_sq) {
+                  pts_per_roofplane[static_cast<int>(adjacent_plane_id)]
+                      .second.push_back(pt);
+                  ++intersection_point_additions;
+                }
+              }
+            }
+
+            // Check adjacencies where primary_plane_id is the lower ID
+            for (const auto& [higher_id, lower_map] : plane_adjacencies) {
+              auto lower_it = lower_map.find(primary_plane_id);
+              if (lower_it != lower_map.end()) {
+                // higher_id is adjacent to primary_plane_id
+                auto plane_it =
+                    pts_per_roofplane.find(static_cast<int>(higher_id));
+                if (plane_it == pts_per_roofplane.end()) continue;
+
+                const Plane& adjacent_plane = plane_it->second.first;
+                double dist_sq = CGAL::squared_distance(adjacent_plane, pt);
+
+                if (dist_sq < intersection_threshold_sq) {
+                  pts_per_roofplane[static_cast<int>(higher_id)]
+                      .second.push_back(pt);
+                  ++intersection_point_additions;
+                }
+              }
+            }
+          }
+        }
 
         // int roof_type=-2; // as built: -2=undefined; -1=no pts; 0=LOD1,
         // 1=LOD1.3, 2=LOD2

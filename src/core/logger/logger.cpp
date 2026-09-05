@@ -30,7 +30,6 @@
  */
 #if !defined(RF_USE_LOGGER_SPDLOG)
 
-#include <fmt/chrono.h>
 #include <roofer/logger/logger.h>
 
 #include <array>
@@ -38,6 +37,8 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -56,8 +57,16 @@ namespace roofer::logger {
   /** @brief Get current time, for printing into the log */
   std::string get_now_string() {
     using system_clock = std::chrono::system_clock;
-    auto now = system_clock::now();
-    return fmt::format("{:%F %T}", now);
+    auto now = system_clock::to_time_t(system_clock::now());
+    std::tm local_time{};
+#if defined(_WIN32)
+    localtime_s(&local_time, &now);
+#else
+    localtime_r(&now, &local_time);
+#endif
+    std::stringstream ss;
+    ss << std::put_time(&local_time, "%F %T");
+    return ss.str();
   }
 
   struct Logger::logger_impl {
