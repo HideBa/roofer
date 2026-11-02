@@ -13,6 +13,7 @@ class RooferRecipe(ConanFile):
         "use_val3dity":   [True, False],
         "build_bindings": [True, False],
         "build_testing":  [True, False],
+        "use_osqp":       [True, False],
     }
     default_options = {
         "build_apps":     True,
@@ -20,6 +21,8 @@ class RooferRecipe(ConanFile):
         "use_val3dity":   False,
         "build_bindings": False,
         "build_testing":  False,
+        # OSQP enables the global segment regulariser (CGAL Shape_regularization)
+        "use_osqp":       True,
     }
 
     def requirements(self):
@@ -27,6 +30,8 @@ class RooferRecipe(ConanFile):
         self.requires("cgal/6.1.1")
         self.requires("eigen/3.4.0")
         self.requires("fmt/11.1.3")
+        if self.options.use_osqp:
+            self.requires("osqp/0.6.3")
 
         if self.options.use_spdlog or self.options.use_val3dity:
             self.requires("spdlog/1.15.1")
@@ -86,6 +91,7 @@ class RooferRecipe(ConanFile):
         tc.variables["RF_USE_VAL3DITY"] = bool(self.options.use_val3dity)
         tc.variables["RF_BUILD_BINDINGS"] = bool(self.options.build_bindings)
         tc.variables["RF_BUILD_TESTING"] = bool(self.options.build_testing)
+        tc.variables["RF_USE_OSQP"] = bool(self.options.use_osqp)
         git_hash = self.conf.get("user.roofer:git_hash", default=None)
         if git_hash:
             tc.variables["RF_GIT_HASH"] = str(git_hash)

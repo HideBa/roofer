@@ -517,12 +517,18 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     }
 #endif
 
+    const size_t n_reg_lines = LineRegulariser->exact_regularised_edges.size();
+    size_t n_arr_faces = 0;
+    for (auto face : arrangement.face_handles())
+      if (face->data().in_footprint) ++n_arr_faces;
+
     t0 = std::chrono::high_resolution_clock::now();
     auto ArrangementOptimiser =
         roofer::reconstruction::createArrangementOptimiser();
     auto optimiser_config = reconstruction.arrangement_optimiser;
     optimiser_config.use_ground =
         !building.pointcloud_ground.empty() && reconstruction.clip_terrain;
+    ArrangementOptimiser->plane_adjacencies = &PlaneDetector->plane_adjacencies;
     ArrangementOptimiser->compute(arrangement, SegmentRasteriser->heightfield,
                                   PlaneDetector->pts_per_roofplane,
                                   PlaneDetector_ground->pts_per_roofplane,
@@ -560,7 +566,9 @@ void reconstruct_building(BuildingObject& building, RooferConfig* cfg) {
     timings["extrude"] = std::chrono::high_resolution_clock::now() - t0;
 
     std::string timings_str =
-        fmt::format("[reconstructor t] {} (", building.jsonl_path.string());
+        fmt::format("[reconstructor t] {} [lines {} faces {} planes {}] (",
+                    building.jsonl_path.string(), n_reg_lines, n_arr_faces,
+                    PlaneDetector->pts_per_roofplane.size());
     for (const auto& [key, value] : timings) {
       auto ms = static_cast<int>(
           std::chrono::duration_cast<std::chrono::milliseconds>(value).count());

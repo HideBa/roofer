@@ -192,3 +192,9 @@ if(RF_BUILD_BINDINGS)
                             "PYTHONPATH=${CMAKE_BINARY_DIR}/rooferpy")
   endif()
 endif()
+
+add_executable("test_label_cost_expansion"
+               "${CMAKE_CURRENT_SOURCE_DIR}/test_label_cost_expansion.cpp")
+target_link_libraries("test_label_cost_expansion"
+                      PRIVATE Catch2::Catch2WithMain roofer-core)
+catch_discover_tests("test_label_cost_expansion")

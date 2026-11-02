@@ -36,7 +36,25 @@ namespace roofer::reconstruction {
   X(float, extension, 3.0F, "Regularised line extension, in metres.",          \
     config::at_least(0.0F), public_)                                           \
   X(bool, merge_intersection_lines, false, "Merge plane intersection lines.",  \
-    config::no_validation<bool>(), public_)
+    config::no_validation<bool>(), public_)                                    \
+  X(bool, global_regularisation, false,                                        \
+    "Regularise segment angles and offsets jointly (CGAL Shape_regularization" \
+    " QP) and keep every distinct line instead of one mean line per cluster.", \
+    config::no_validation<bool>(), public_)                                    \
+  X(float, global_max_angle, 8.594367F,                                        \
+    "Global regulariser: maximum rotation of a boundary segment, in degrees.", \
+    config::in_range(0.0F, 90.0F), public_)                                    \
+  X(float, global_max_offset, 0.3F,                                            \
+    "Global regulariser: maximum shift of a boundary segment, in metres.",     \
+    config::at_least(0.0F), public_)                                           \
+  X(float, global_anchor_factor, 0.1F,                                         \
+    "Global regulariser: bound of plane intersection lines relative to "       \
+    "boundary segments (small = intersection lines stay put).",                \
+    config::in_range(0.001F, 1.0F), public_)                                   \
+  X(float, global_collinear_tolerance, 0.05F,                                  \
+    "Global regulariser: offset below which regularised parallel segments "    \
+    "count as one line, in metres.",                                           \
+    config::at_least(0.0F), public_)
   struct LineRegulariserConfig {
     using Self = LineRegulariserConfig;
     ROOFER_CONFIG_MEMBERS(ROOFER_LINE_REGULARISER_FIELDS)
