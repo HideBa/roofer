@@ -102,6 +102,9 @@ jobs:
         run: conan profile detect --force
 
       - name: Install dependencies
+        # osqp/0.6.3 declares cmake_minimum_required(VERSION 2.8), which CMake >= 4 rejects.
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: >
           conan install .
           --output-folder=build
