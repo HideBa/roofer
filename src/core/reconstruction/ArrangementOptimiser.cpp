@@ -330,7 +330,9 @@ namespace roofer::reconstruction {
           labelcost::Edge e;
           e.p = f1->data().v_index;
           e.q = f2->data().v_index;
-          e.w = edge->data().edge_weight;
+          // Roofer's CGAL graph lists every edge twice (both halfedges), so
+          // its smoothness term counts each edge twice; match that energy.
+          e.w = 2.0 * edge->data().edge_weight;
           e.x0 = CGAL::to_double(edge->source()->point().x());
           e.y0 = CGAL::to_double(edge->source()->point().y());
           e.x1 = CGAL::to_double(edge->target()->point().x());
@@ -392,6 +394,15 @@ namespace roofer::reconstruction {
         }
       }
       if (!use_label_cost_solver) {
+        if (cfg.init_best_data_label) {
+          // start the CGAL expansion from each face's best-fitting plane
+          // instead of label 0 for every face
+          for (auto& face : faces) {
+            const auto& c = face->data().vertex_label_cost;
+            face->data().label =
+                std::min_element(c.begin(), c.end()) - c.begin();
+          }
+        }
         FootprintGraph graph(faces, edges);
 
         // assign initial labels?

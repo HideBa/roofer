@@ -61,6 +61,10 @@ namespace roofer::reconstruction {
     "Minimum number of neighbouring point pairs between two planes for "  \
     "their intersection discount (when plane adjacencies are given).",    \
     config::at_least(0), public_)                                         \
+  X(bool, init_best_data_label, false,                                    \
+    "Start Roofer's CGAL graph-cut from each face's best-fitting plane "  \
+    "instead of the first plane.",                                        \
+    config::no_validation<bool>(), public_)                               \
   X(bool, label_cost_solver, false,                                       \
     "Use the label-cost alpha-expansion solver even when label_cost and " \
     "intersection_discount are 0 (for ablations).",                       \
