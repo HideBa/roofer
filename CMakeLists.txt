@@ -17,6 +17,7 @@ option(BUILD_SHARED_LIBS "Build using shared libraries (may not work)" OFF)
 option(RF_BUILD_TESTING "Enable tests for roofer" OFF)
 option(RF_ENABLE_HEAP_TRACING "Enable heap allocation overloads" OFF)
 option(RF_USE_CPM "Use CPM to fetch dependencies" ON)
+option(RF_USE_OSQP "Enable the global segment regulariser (needs OSQP)" OFF)
 
 # Global CMake variables are set here We use C++20, with the assumption that we
 # only implement features that are supported by GCC, Clang, MSVC, Apple Clang

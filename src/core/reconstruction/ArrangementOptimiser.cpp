@@ -26,7 +26,11 @@
 #include <CGAL/property_map.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <iostream>
 #include <roofer/reconstruction/ArrangementBase.hpp>
+#include <roofer/reconstruction/LabelCostExpansion.hpp>
 #include <roofer/reconstruction/ArrangementOptimiser.hpp>
 #include <vector>
 
@@ -306,41 +310,147 @@ namespace roofer::reconstruction {
         }
       }
 
-      FootprintGraph graph(faces, edges);
-
-      // assign initial labels?
-      // auto graph = Dual_arrangement(arr);
-      // InFootprintFaceFilter face_filter;
-      // InFootprintEdgeFilter edge_filter;
-      // boost::filtered_graph<Dual_arrangement, InFootprintEdgeFilter,
-      // InFootprintFaceFilter >
-      //   filtered_graph(graph, edge_filter, face_filter);
-
-      // boost::adjacency_list<> g(N);
-
-      double result;
-
-      if (cfg.graph_cut_impl == 0) {
-        result = CGAL::alpha_expansion_graphcut(
-            graph, Edge_weight_property_map(), Vertex_label_cost_property_map(),
-            Vertex_label_property_map(),
-            CGAL::parameters::vertex_index_map(Vertex_index_map())
-                .implementation_tag(
-                    CGAL::Alpha_expansion_boost_adjacency_list_tag()));
-      } else if (cfg.graph_cut_impl == 1) {
-        result = CGAL::alpha_expansion_graphcut(
-            graph, Edge_weight_property_map(), Vertex_label_cost_property_map(),
-            Vertex_label_property_map(),
-            CGAL::parameters::vertex_index_map(Vertex_index_map())
-                .implementation_tag(
-                    CGAL::Alpha_expansion_boost_compressed_sparse_row_tag()));
-      } else if (cfg.graph_cut_impl == 2) {
-        result = CGAL::alpha_expansion_graphcut(
-            graph, Edge_weight_property_map(), Vertex_label_cost_property_map(),
-            Vertex_label_property_map(),
-            CGAL::parameters::vertex_index_map(Vertex_index_map())
-                .implementation_tag(CGAL::Alpha_expansion_MaxFlow_tag()));
+      const bool use_label_cost_solver = cfg.label_cost_solver ||
+                                         cfg.label_cost > 0 ||
+                                         cfg.intersection_discount > 0;
+      // ROOFER_LABELCOST_DEBUG=1 prints the energy reached by the solver
+      // that ran (both evaluated with the label-cost energy) to stderr.
+      static const bool debug_energy =
+          std::getenv("ROOFER_LABELCOST_DEBUG") != nullptr;
+      std::unique_ptr<labelcost::Solver> debug_solver;
+      if (use_label_cost_solver || debug_energy) {
+        std::vector<std::vector<double>> D(faces.size());
+        for (size_t p = 0; p < faces.size(); ++p)
+          D[p] = faces[p]->data().vertex_label_cost;
+        std::vector<labelcost::Edge> lc_edges;
+        for (auto edge : arr.edge_handles()) {
+          auto f1 = edge->face(), f2 = edge->twin()->face();
+          if (!f1->data().in_footprint || !f2->data().in_footprint) continue;
+          if (f1 == f2) continue;
+          labelcost::Edge e;
+          e.p = f1->data().v_index;
+          e.q = f2->data().v_index;
+          // Roofer's CGAL graph lists every edge twice (both halfedges), so
+          // its smoothness term counts each edge twice; match that energy.
+          e.w = 2.0 * edge->data().edge_weight;
+          e.x0 = CGAL::to_double(edge->source()->point().x());
+          e.y0 = CGAL::to_double(edge->source()->point().y());
+          e.x1 = CGAL::to_double(edge->target()->point().x());
+          e.y1 = CGAL::to_double(edge->target()->point().y());
+          lc_edges.push_back(e);
+        }
+        std::vector<std::array<double, 3>> planes;
+        std::vector<double> h;
+        for (size_t l = 0; l < points_per_plane.size(); ++l) {
+          const auto& pl = std::get<0>(points_per_plane[l]);
+          const double c = pl.c();
+          if (std::fabs(c) < 1e-9)
+            planes.push_back({0, 0, 0});
+          else
+            planes.push_back({-pl.a() / c, -pl.b() / c, -pl.d() / c});
+          h.push_back(l < roofplane_cnt ? cfg.data_weight() * cfg.label_cost
+                                        : 0.0);
+        }
+        labelcost::Solver solver(D, lc_edges, h, roofplane_cnt,
+                                 cfg.intersection_discount,
+                                 cfg.intersection_distance, planes);
+        if (plane_adjacencies && cfg.intersection_discount > 0) {
+          solver.pair_ok.assign(roofplane_cnt * roofplane_cnt, 0);
+          for (size_t a = 0; a < roofplane_cnt; ++a) {
+            for (size_t b = a + 1; b < roofplane_cnt; ++b) {
+              const size_t ida = std::get<1>(points_per_plane[a]);
+              const size_t idb = std::get<1>(points_per_plane[b]);
+              size_t cnt = 0;
+              for (auto [x, y] : {std::pair{ida, idb}, std::pair{idb, ida}}) {
+                auto it = plane_adjacencies->find(x);
+                if (it == plane_adjacencies->end()) continue;
+                auto jt = it->second.find(y);
+                if (jt != it->second.end()) cnt = std::max(cnt, jt->second);
+              }
+              if (cnt >= size_t(cfg.intersection_min_adjacency))
+                solver.pair_ok[a * roofplane_cnt + b] = 1;
+            }
+          }
+        }
+        size_t n_moves = 0;
+        int n_cycles = 0;
+        if (use_label_cost_solver) {
+          auto lab = solver.solve(cfg.max_expansion_cycles, n_moves, n_cycles);
+          for (size_t p = 0; p < faces.size(); ++p)
+            faces[p]->data().label = lab[p];
+          if (debug_energy) {
+            std::vector<char> used(planes.size(), 0);
+            for (auto l : lab) used[l] = 1;
+            std::cerr << "[labelcost] solver=expansion faces=" << faces.size()
+                      << " labels=" << planes.size()
+                      << " used=" << std::count(used.begin(), used.end(), 1)
+                      << " cycles=" << n_cycles << " moves=" << n_moves
+                      << " energy=" << solver.energy(lab) << "\n";
+          }
+        } else {
+          // debug only: run Roofer's CGAL graph-cut below, then report its
+          // energy under the same energy function
+          debug_solver = std::make_unique<labelcost::Solver>(std::move(solver));
+        }
       }
+      if (!use_label_cost_solver) {
+        if (cfg.init_best_data_label) {
+          // start the CGAL expansion from each face's best-fitting plane
+          // instead of label 0 for every face
+          for (auto& face : faces) {
+            const auto& c = face->data().vertex_label_cost;
+            face->data().label =
+                std::min_element(c.begin(), c.end()) - c.begin();
+          }
+        }
+        FootprintGraph graph(faces, edges);
+
+        // assign initial labels?
+        // auto graph = Dual_arrangement(arr);
+        // InFootprintFaceFilter face_filter;
+        // InFootprintEdgeFilter edge_filter;
+        // boost::filtered_graph<Dual_arrangement, InFootprintEdgeFilter,
+        // InFootprintFaceFilter >
+        //   filtered_graph(graph, edge_filter, face_filter);
+
+        // boost::adjacency_list<> g(N);
+
+        double result;
+
+        if (cfg.graph_cut_impl == 0) {
+          result = CGAL::alpha_expansion_graphcut(
+              graph, Edge_weight_property_map(),
+              Vertex_label_cost_property_map(), Vertex_label_property_map(),
+              CGAL::parameters::vertex_index_map(Vertex_index_map())
+                  .implementation_tag(
+                      CGAL::Alpha_expansion_boost_adjacency_list_tag()));
+        } else if (cfg.graph_cut_impl == 1) {
+          result = CGAL::alpha_expansion_graphcut(
+              graph, Edge_weight_property_map(),
+              Vertex_label_cost_property_map(), Vertex_label_property_map(),
+              CGAL::parameters::vertex_index_map(Vertex_index_map())
+                  .implementation_tag(
+                      CGAL::Alpha_expansion_boost_compressed_sparse_row_tag()));
+        } else if (cfg.graph_cut_impl == 2) {
+          result = CGAL::alpha_expansion_graphcut(
+              graph, Edge_weight_property_map(),
+              Vertex_label_cost_property_map(), Vertex_label_property_map(),
+              CGAL::parameters::vertex_index_map(Vertex_index_map())
+                  .implementation_tag(CGAL::Alpha_expansion_MaxFlow_tag()));
+        }
+
+        if (debug_solver) {
+          std::vector<size_t> lab(faces.size());
+          for (size_t p = 0; p < faces.size(); ++p)
+            lab[p] = faces[p]->data().label;
+          std::vector<char> used(points_per_plane.size(), 0);
+          for (auto l : lab) used[l] = 1;
+          std::cerr << "[labelcost] solver=cgal faces=" << faces.size()
+                    << " labels=" << points_per_plane.size()
+                    << " used=" << std::count(used.begin(), used.end(), 1)
+                    << " energy=" << debug_solver->energy(lab) << "\n";
+        }
+      }  // end CGAL alpha-expansion
 
       // store ground parts
       // std::vector<LinearRing> groundparts;

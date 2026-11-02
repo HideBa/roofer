@@ -20,6 +20,7 @@
 // Ravi Peters
 
 #pragma once
+#include <map>
 #include <memory>
 #include <roofer/common/Raster.hpp>
 #include <roofer/common/datastructures.hpp>
@@ -42,7 +43,35 @@ namespace roofer::reconstruction {
     "Label ground outside the footprint.", config::no_validation<bool>(), \
     internal)                                                             \
   X(bool, use_ground, true, "Use ground labels (pipeline-derived).",      \
-    config::no_validation<bool>(), internal)
+    config::no_validation<bool>(), internal)                              \
+  X(float, label_cost, 0.0F,                                              \
+    "Cost of using a roof plane label at all (Delong et al. 2012), in "   \
+    "cubic metres of height-field volume; scaled like the data term. "    \
+    "0 disables label costs.",                                            \
+    config::at_least(0.0F), public_)                                      \
+  X(float, intersection_discount, 0.0F,                                   \
+    "Fraction of the edge cost removed when an edge lies on the "         \
+    "intersection line of the two planes it separates. 0 disables.",      \
+    config::in_range(0.0F, 1.0F), public_)                                \
+  X(float, intersection_distance, 0.5F,                                   \
+    "Distance from an edge to the plane intersection line at which the "  \
+    "intersection discount has faded to zero, in metres.",                \
+    config::greater_than(0.0F), public_)                                  \
+  X(int, intersection_min_adjacency, 5,                                   \
+    "Minimum number of neighbouring point pairs between two planes for "  \
+    "their intersection discount (when plane adjacencies are given).",    \
+    config::at_least(0), public_)                                         \
+  X(bool, init_best_data_label, false,                                    \
+    "Start Roofer's CGAL graph-cut from each face's best-fitting plane "  \
+    "instead of the first plane.",                                        \
+    config::no_validation<bool>(), public_)                               \
+  X(bool, label_cost_solver, false,                                       \
+    "Use the label-cost alpha-expansion solver even when label_cost and " \
+    "intersection_discount are 0 (for ablations).",                       \
+    config::no_validation<bool>(), public_)                               \
+  X(int, max_expansion_cycles, 20,                                        \
+    "Maximum number of alpha-expansion cycles of the label-cost solver.", \
+    config::at_least(1), internal)
   struct ArrangementOptimiserConfig {
     using Self = ArrangementOptimiserConfig;
     ROOFER_CONFIG_MEMBERS(ROOFER_ARRANGEMENT_OPTIMISER_FIELDS)
@@ -63,6 +92,13 @@ namespace roofer::reconstruction {
     // add_input("ground_pts_per_roofplane", typeid(IndexedPlanesWithPoints ));
     // add_output("arrangement", typeid(Arrangement_2));
     // add_vector_output("groundparts", typeid(LinearRing));
+
+    // Optional: point-evidence adjacency between roof planes (plane id ->
+    // neighbour plane id -> number of neighbouring point pairs), as computed
+    // by the PlaneDetector. When set, the intersection discount only applies
+    // to plane pairs that are adjacent in the point cloud.
+    const std::map<size_t, std::map<size_t, size_t>>* plane_adjacencies =
+        nullptr;
 
     virtual ~ArrangementOptimiserInterface() = default;
     virtual void compute(
