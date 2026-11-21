@@ -140,6 +140,11 @@ namespace roofer::reconstruction {
       result.plane_intersector.min_length *= distance_scale;
       result.line_regulariser.distance_threshold *= distance_scale;
       result.line_regulariser.extension *= distance_scale;
+      result.line_regulariser.global_max_offset *= distance_scale;
+      result.line_regulariser.global_collinear_tolerance *= distance_scale;
+      result.arrangement_optimiser.intersection_distance *= distance_scale;
+      result.arrangement_optimiser.label_cost *=
+          distance_scale * distance_scale * distance_scale;
       result.segment_rasteriser.cell_size *= distance_scale;
       result.arrangement_builder.snap_tolerance *= distance_scale;
       result.arrangement_builder.footprint_extension *= distance_scale;

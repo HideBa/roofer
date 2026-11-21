@@ -30,6 +30,7 @@ set(LIBRARY_HEADERS
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/cgal_shared_definitions.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LineDetector.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LineDetectorBase.hpp"
+    "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LabelCostExpansion.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LineRegulariser.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/LineRegulariserBase.hpp"
     "${ROOFER_INCLUDE_DIR}/roofer/reconstruction/MeshTriangulator.hpp"
@@ -48,3 +49,9 @@ target_include_directories("reconstruction" PUBLIC ${LIBRARY_INCLUDES})
 target_link_libraries(
   "reconstruction" PUBLIC CGAL::CGAL
 )
+
+if(RF_USE_OSQP)
+  find_package(osqp REQUIRED)
+  target_link_libraries("reconstruction" PUBLIC osqp::osqp)
+  target_compile_definitions("reconstruction" PUBLIC RF_USE_OSQP)
+endif()
